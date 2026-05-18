@@ -19,6 +19,8 @@ COLOR_AUTO_H      = "FFEB9C"
 COLOR_AUTO_D      = "FFF2CC"
 COLOR_SUBTOTAL_BG = "B8CCE4"  # medium blue for subtotal rows
 COLOR_TOTAL_BG    = "FFF2CC"
+COLOR_REDUCE_H    = "FCE4D6"  # light red-orange for reduction hours
+COLOR_REDUCE_D    = "FBE5D6"  # pale red-orange for reduction days
 
 def fill(hex_color):
     return PatternFill("solid", fgColor=hex_color)
@@ -42,9 +44,11 @@ ws.column_dimensions["D"].width = 14
 ws.column_dimensions["E"].width = 12
 ws.column_dimensions["F"].width = 14
 ws.column_dimensions["G"].width = 12
+ws.column_dimensions["H"].width = 14
+ws.column_dimensions["I"].width = 12
 
 # ── Row 1: Title ────────────────────────────────────────────────
-ws.merge_cells("A1:G1")
+ws.merge_cells("A1:I1")
 c = ws["A1"]
 c.value = "QDC_FULL 基本機能確認（QFC, QDC）"
 c.font = Font(bold=True, color=COLOR_WHITE, size=13, name="Meiryo")
@@ -57,7 +61,8 @@ ws.row_dimensions[1].height = 26
 for col, label in enumerate(
     ["大分類", "中分類", "詳細項目",
      "手動操作\n(h)", "手動操作\n(日)",
-     "自動操作\n(h)", "自動操作\n(日)"], start=1
+     "自動操作\n(h)", "自動操作\n(日)",
+     "削減時間\n(h)", "削減日数\n(日)"], start=1
 ):
     c = ws.cell(row=2, column=col, value=label)
     c.font = Font(bold=True, color=COLOR_WHITE, size=10, name="Meiryo")
@@ -112,11 +117,15 @@ section_row_ranges = {}  # cat1 -> [first_row, last_row_before_total]
 subcat_row_ranges  = {}  # (cat1, cat2) -> [first_row, last_data_row]
 
 def write_value_cells(row, manual_h, auto_h, bold=False, bg_override=None):
+    reduce_h = round(manual_h - auto_h, 2)
+    reduce_d = round(reduce_h / HOURS_PER_DAY, 2)
     for col, val, fmt, bg in [
         (4, manual_h,                             "0.0",  bg_override or COLOR_MANUAL_H),
         (5, round(manual_h / HOURS_PER_DAY, 2),  "0.00", bg_override or COLOR_MANUAL_D),
         (6, auto_h,                               "0.0",  bg_override or COLOR_AUTO_H),
         (7, round(auto_h   / HOURS_PER_DAY, 2),  "0.00", bg_override or COLOR_AUTO_D),
+        (8, reduce_h,                             "0.0",  bg_override or COLOR_REDUCE_H),
+        (9, reduce_d,                             "0.00", bg_override or COLOR_REDUCE_D),
     ]:
         c = ws.cell(row=row, column=col, value=val)
         c.font = mfont(bold=bold)
@@ -222,11 +231,14 @@ ct.fill = fill(COLOR_TOTAL_BG)
 ct.alignment = align()
 ct.border = border("medium")
 
+total_reduce_h = round(total_manual_h - total_auto_h, 2)
 for col, val, fmt in [
-    (4, total_manual_h,                         "0.0"),
+    (4, total_manual_h,                            "0.0"),
     (5, round(total_manual_h / HOURS_PER_DAY, 2), "0.00"),
-    (6, total_auto_h,                           "0.0"),
+    (6, total_auto_h,                              "0.0"),
     (7, round(total_auto_h   / HOURS_PER_DAY, 2), "0.00"),
+    (8, total_reduce_h,                            "0.0"),
+    (9, round(total_reduce_h / HOURS_PER_DAY, 2), "0.00"),
 ]:
     c = ws.cell(row=TOTAL_ROW, column=col, value=val)
     c.font = Font(bold=True, size=11, name="Meiryo")
@@ -237,7 +249,7 @@ for col, val, fmt in [
 
 # ── Legend ───────────────────────────────────────────────────────
 LEG_ROW = TOTAL_ROW + 2
-ws.merge_cells(f"A{LEG_ROW}:G{LEG_ROW}")
+ws.merge_cells(f"A{LEG_ROW}:I{LEG_ROW}")
 ws[f"A{LEG_ROW}"].value = "凡例：1日 = 8時間換算"
 ws[f"A{LEG_ROW}"].font = Font(italic=True, size=9, color="666666", name="Meiryo")
 ws[f"A{LEG_ROW}"].alignment = align("left")
