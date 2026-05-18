@@ -1,8 +1,5 @@
 import openpyxl
-from openpyxl.styles import (
-    PatternFill, Font, Alignment, Border, Side, numbers
-)
-from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
 wb = openpyxl.Workbook()
 ws = wb.active
@@ -10,43 +7,34 @@ ws.title = "QDC_FULL基本機能確認"
 
 HOURS_PER_DAY = 8
 
-# Color palette
-COLOR_HEADER_DARK  = "1F3864"  # dark navy
-COLOR_HEADER_MID   = "2E75B6"  # blue
-COLOR_SECTION_BG   = "D6E4F0"  # light blue
-COLOR_SUBSEC_BG    = "EBF3FB"  # lighter blue
-COLOR_ALT_ROW      = "F2F9FF"  # very light blue
-COLOR_TOTAL_BG     = "FFF2CC"  # yellow
-COLOR_WHITE        = "FFFFFF"
-COLOR_MANUAL_H     = "C6EFCE"  # light green
-COLOR_MANUAL_D     = "E2EFDA"  # pale green
-COLOR_AUTO_H       = "FFEB9C"  # light amber
-COLOR_AUTO_D       = "FFF2CC"  # pale amber
+COLOR_HEADER_DARK = "1F3864"
+COLOR_HEADER_MID  = "2E75B6"
+COLOR_SECTION_BG  = "D6E4F0"
+COLOR_SUBSEC_BG   = "EBF3FB"
+COLOR_ALT_ROW     = "F2F9FF"
+COLOR_WHITE       = "FFFFFF"
+COLOR_MANUAL_H    = "C6EFCE"
+COLOR_MANUAL_D    = "E2EFDA"
+COLOR_AUTO_H      = "FFEB9C"
+COLOR_AUTO_D      = "FFF2CC"
+COLOR_SUBTOTAL_BG = "B8CCE4"  # medium blue for subtotal rows
+COLOR_TOTAL_BG    = "FFF2CC"
 
 def fill(hex_color):
     return PatternFill("solid", fgColor=hex_color)
 
-def thin_border():
-    s = Side(style="thin", color="AAAAAA")
-    return Border(left=s, right=s, top=s, bottom=s)
-
-def thick_bottom():
+def border(bottom_style="thin"):
     thin = Side(style="thin", color="AAAAAA")
-    thick = Side(style="medium", color="333333")
-    return Border(left=thin, right=thin, top=thin, bottom=thick)
+    bot  = Side(style=bottom_style, color="333333" if bottom_style == "medium" else "AAAAAA")
+    return Border(left=thin, right=thin, top=thin, bottom=bot)
 
-def font(bold=False, color="000000", size=10):
+def mfont(bold=False, color="000000", size=10):
     return Font(bold=bold, color=color, size=size, name="Meiryo")
 
 def align(h="center", v="center", wrap=False):
     return Alignment(horizontal=h, vertical=v, wrap_text=wrap)
 
-# ------------------------------------------------------------------
-# Column layout
-# A: 大分類, B: 中分類, C: 詳細項目
-# D: 手動操作(h), E: 手動操作(日), F: 自動操作(h), G: 自動操作(日)
-# ------------------------------------------------------------------
-
+# Column widths
 ws.column_dimensions["A"].width = 14
 ws.column_dimensions["B"].width = 22
 ws.column_dimensions["C"].width = 22
@@ -55,165 +43,204 @@ ws.column_dimensions["E"].width = 12
 ws.column_dimensions["F"].width = 14
 ws.column_dimensions["G"].width = 12
 
-# ---- Row 1: Title ------------------------------------------------
+# ── Row 1: Title ────────────────────────────────────────────────
 ws.merge_cells("A1:G1")
 c = ws["A1"]
 c.value = "QDC_FULL 基本機能確認（QFC, QDC）"
 c.font = Font(bold=True, color=COLOR_WHITE, size=13, name="Meiryo")
 c.fill = fill(COLOR_HEADER_DARK)
-c.alignment = align("center", "center")
-c.border = thin_border()
+c.alignment = align()
+c.border = border()
 ws.row_dimensions[1].height = 26
 
-# ---- Row 2: Column headers ---------------------------------------
-headers = [
-    ("大分類", "A2"), ("中分類", "B2"), ("詳細項目", "C2"),
-    ("手動操作\n(h)", "D2"), ("手動操作\n(日)", "E2"),
-    ("自動操作\n(h)", "F2"), ("自動操作\n(日)", "G2"),
-]
-for label, addr in headers:
-    c = ws[addr]
-    c.value = label
+# ── Row 2: Column headers ────────────────────────────────────────
+for col, label in enumerate(
+    ["大分類", "中分類", "詳細項目",
+     "手動操作\n(h)", "手動操作\n(日)",
+     "自動操作\n(h)", "自動操作\n(日)"], start=1
+):
+    c = ws.cell(row=2, column=col, value=label)
     c.font = Font(bold=True, color=COLOR_WHITE, size=10, name="Meiryo")
     c.fill = fill(COLOR_HEADER_MID)
-    c.alignment = align("center", "center", wrap=True)
-    c.border = thin_border()
+    c.alignment = align(wrap=True)
+    c.border = border()
 ws.row_dimensions[2].height = 32
 
-# ------------------------------------------------------------------
-# Data rows
-# Format: (大分類, 中分類, 詳細項目, 手動h, 自動h)
-# ------------------------------------------------------------------
-data = [
-    # 実験時間 / 実験準備時間
-    ("実験時間", "実験準備時間(h)",
-     "データ整理\n（UPロード時間、データ確認）", 1.2, 1.2),
-    ("",         "",
-     "スタンバイ\n（C/D載せ・降ろし）",           3.0, 3.0),
-    ("",         "",
-     "計測準備\n（設置、設定）",                   9.5, 9.5),
-    ("",         "",
-     "DTC取得",                                     1.2, 1.2),
-    # 実験時間 / 実験評価時間
-    ("",         "実験評価時間(h)",
-     "CD実験・作業",                                8.0, 8.0),
-    ("",         "",
-     "定置実験・作業",                              6.0, 6.0),
-    # 解析時間
-    ("解析時間", "波形作成、クライテリア確認時間(h)",
-     "",                                            16.0, 16.0),
+# ── Data definition ──────────────────────────────────────────────
+# Groups: (group_label, cat1, cat2, [items])
+# item: (detail, manual_h, auto_h)
+groups = [
+    (
+        "① 実験準備時間 小計",
+        "実験時間", "実験準備時間(h)",
+        [
+            ("データ整理\n（UPロード時間、データ確認）", 1.2, 1.2),
+            ("スタンバイ\n（C/D載せ・降ろし）",           3.0, 3.0),
+            ("計測準備\n（設置、設定）",                   9.5, 9.5),
+            ("DTC取得",                                     1.2, 1.2),
+        ],
+    ),
+    (
+        "② 実験評価時間 小計",
+        "実験時間", "実験評価時間(h)",
+        [
+            ("CD実験・作業",  8.0, 8.0),
+            ("定置実験・作業", 6.0, 6.0),
+        ],
+    ),
+    (
+        "③ 波形作成・クライテリア確認時間 小計",
+        "解析時間", "波形作成、クライテリア確認時間(h)",
+        [
+            ("", 16.0, 16.0),
+        ],
+    ),
 ]
 
-# rows start at 3
+# ── Build rows ───────────────────────────────────────────────────
+# Row layout:
+#   data rows for group 1 → subtotal row ①
+#   data rows for group 2 → subtotal row ②
+#   data rows for group 3 → subtotal row ③
+#   TOTAL row
+
 ROW_START = 3
+current_row = ROW_START
 
-# Track merge ranges for 大分類 and 中分類
-section_ranges = {}   # key: (col, value) -> [first_row, last_row]
+# Track which rows belong to each section for merging A column
+section_row_ranges = {}  # cat1 -> [first_row, last_row_before_total]
+subcat_row_ranges  = {}  # (cat1, cat2) -> [first_row, last_data_row]
 
-for i, (cat1, cat2, detail, manual_h, auto_h) in enumerate(data):
-    row = ROW_START + i
-    ws.row_dimensions[row].height = 36
+def write_value_cells(row, manual_h, auto_h, bold=False, bg_override=None):
+    for col, val, fmt, bg in [
+        (4, manual_h,                             "0.0",  bg_override or COLOR_MANUAL_H),
+        (5, round(manual_h / HOURS_PER_DAY, 2),  "0.00", bg_override or COLOR_MANUAL_D),
+        (6, auto_h,                               "0.0",  bg_override or COLOR_AUTO_H),
+        (7, round(auto_h   / HOURS_PER_DAY, 2),  "0.00", bg_override or COLOR_AUTO_D),
+    ]:
+        c = ws.cell(row=row, column=col, value=val)
+        c.font = mfont(bold=bold)
+        c.fill = fill(bg)
+        c.alignment = align()
+        c.number_format = fmt
+        c.border = border()
 
-    bg = COLOR_ALT_ROW if i % 2 == 0 else COLOR_WHITE
-    if cat1 == "解析時間":
-        bg = COLOR_SUBSEC_BG
+alt = 0
+for group_label, cat1, cat2, items in groups:
+    group_first_row = current_row
 
-    # A: 大分類
-    ca = ws.cell(row=row, column=1, value=cat1 if cat1 else None)
-    ca.font = font(bold=bool(cat1), size=10)
-    ca.fill = fill(COLOR_SECTION_BG if cat1 else bg)
-    ca.alignment = align("center", "center", wrap=True)
-    ca.border = thin_border()
+    # ── Data rows ─────────────────────────────────────────────
+    for detail, manual_h, auto_h in items:
+        ws.row_dimensions[current_row].height = 36
+        row_bg = COLOR_ALT_ROW if alt % 2 == 0 else COLOR_WHITE
+        alt += 1
 
-    # B: 中分類
-    cb = ws.cell(row=row, column=2, value=cat2 if cat2 else None)
-    cb.font = font(bold=bool(cat2), size=10)
-    cb.fill = fill(COLOR_SUBSEC_BG if cat2 else bg)
-    cb.alignment = align("center", "center", wrap=True)
-    cb.border = thin_border()
+        # A: 大分類 (value written only in first row; merge later)
+        ca = ws.cell(row=current_row, column=1, value=None)
+        ca.fill = fill(COLOR_SECTION_BG)
+        ca.alignment = align(wrap=True)
+        ca.border = border()
 
-    # C: 詳細項目
-    cc = ws.cell(row=row, column=3, value=detail if detail else None)
-    cc.font = font(size=10)
-    cc.fill = fill(bg)
-    cc.alignment = align("left", "center", wrap=True)
-    cc.border = thin_border()
+        # B: 中分類 (value written only in first row; merge later)
+        cb = ws.cell(row=current_row, column=2, value=None)
+        cb.fill = fill(COLOR_SUBSEC_BG)
+        cb.alignment = align(wrap=True)
+        cb.border = border()
 
-    # D: 手動h
-    cd = ws.cell(row=row, column=4, value=manual_h)
-    cd.font = font(size=10)
-    cd.fill = fill(COLOR_MANUAL_H)
-    cd.alignment = align("center", "center")
-    cd.number_format = "0.0"
-    cd.border = thin_border()
+        # C: 詳細項目
+        cc = ws.cell(row=current_row, column=3, value=detail or None)
+        cc.font = mfont()
+        cc.fill = fill(row_bg)
+        cc.alignment = align("left", wrap=True)
+        cc.border = border()
 
-    # E: 手動日
-    ce = ws.cell(row=row, column=5, value=round(manual_h / HOURS_PER_DAY, 2))
-    ce.font = font(size=10)
-    ce.fill = fill(COLOR_MANUAL_D)
-    ce.alignment = align("center", "center")
-    ce.number_format = "0.00"
-    ce.border = thin_border()
+        write_value_cells(current_row, manual_h, auto_h)
+        current_row += 1
 
-    # F: 自動h
-    cf = ws.cell(row=row, column=6, value=auto_h)
-    cf.font = font(size=10)
-    cf.fill = fill(COLOR_AUTO_H)
-    cf.alignment = align("center", "center")
-    cf.number_format = "0.0"
-    cf.border = thin_border()
+    data_last_row = current_row - 1
 
-    # G: 自動日
-    cg = ws.cell(row=row, column=7, value=round(auto_h / HOURS_PER_DAY, 2))
-    cg.font = font(size=10)
-    cg.fill = fill(COLOR_AUTO_D)
-    cg.alignment = align("center", "center")
-    cg.number_format = "0.00"
-    cg.border = thin_border()
+    # ── Subtotal row ───────────────────────────────────────────
+    ws.row_dimensions[current_row].height = 24
+    subtotal_h_manual = sum(it[1] for it in items)
+    subtotal_h_auto   = sum(it[2] for it in items)
 
-# Merge 大分類: rows 3-8 (実験時間), row 9 (解析時間)
-ws.merge_cells(f"A{ROW_START}:A{ROW_START+5}")
-ws.merge_cells(f"A{ROW_START+6}:A{ROW_START+6}")
-# Merge 中分類: rows 3-6 (実験準備時間), rows 7-8 (実験評価時間)
-ws.merge_cells(f"B{ROW_START}:B{ROW_START+3}")
-ws.merge_cells(f"B{ROW_START+4}:B{ROW_START+5}")
-# 解析時間 中分類 spans C as well (no detail column)
-ws.merge_cells(f"B{ROW_START+6}:C{ROW_START+6}")
+    # A: keep section color (will be part of A merge)
+    ca = ws.cell(row=current_row, column=1, value=None)
+    ca.fill = fill(COLOR_SECTION_BG)
+    ca.border = border()
 
-# ---- TOTAL row ---------------------------------------------------
-TOTAL_ROW = ROW_START + len(data)
+    # B+C merged: subtotal label
+    ws.merge_cells(f"B{current_row}:C{current_row}")
+    cb = ws.cell(row=current_row, column=2, value=group_label)
+    cb.font = mfont(bold=True, color="1F3864")
+    cb.fill = fill(COLOR_SUBTOTAL_BG)
+    cb.alignment = align(wrap=True)
+    cb.border = border()
+    ws.cell(row=current_row, column=3).border = border()
+
+    write_value_cells(current_row, subtotal_h_manual, subtotal_h_auto,
+                      bold=True, bg_override=COLOR_SUBTOTAL_BG)
+
+    section_row_ranges.setdefault(cat1, [current_row, current_row])
+    section_row_ranges[cat1][0] = min(section_row_ranges[cat1][0], group_first_row)
+    section_row_ranges[cat1][1] = current_row
+
+    subcat_row_ranges[(cat1, cat2)] = [group_first_row, data_last_row]
+
+    current_row += 1
+
+# ── Write 大分類 / 中分類 values and merges ──────────────────────
+for cat1, (r_first, r_last) in section_row_ranges.items():
+    ws.cell(row=r_first, column=1).value = cat1
+    ws.cell(row=r_first, column=1).font = mfont(bold=True)
+    if r_first < r_last:
+        ws.merge_cells(f"A{r_first}:A{r_last}")
+
+for (cat1, cat2), (r_first, r_last) in subcat_row_ranges.items():
+    ws.cell(row=r_first, column=2).value = cat2
+    ws.cell(row=r_first, column=2).font = mfont(bold=True)
+    if r_first < r_last:
+        ws.merge_cells(f"B{r_first}:B{r_last}")
+    # For 波形作成 row (no detail), merge B+C in the data row itself
+    if groups[[g[0] for g in groups].index(
+        next(g[0] for g in groups if g[1] == cat1 and g[2] == cat2)
+    )][3][0][0] == "":  # detail is empty
+        ws.merge_cells(f"B{r_first}:C{r_first}")
+
+# ── TOTAL row ────────────────────────────────────────────────────
+TOTAL_ROW = current_row
 ws.row_dimensions[TOTAL_ROW].height = 28
 
-total_manual_h = sum(r[3] for r in data)
-total_auto_h   = sum(r[4] for r in data)
+total_manual_h = sum(it[1] for g in groups for it in g[3])
+total_auto_h   = sum(it[2] for g in groups for it in g[3])
 
 ws.merge_cells(f"A{TOTAL_ROW}:C{TOTAL_ROW}")
 ct = ws[f"A{TOTAL_ROW}"]
 ct.value = "TOTAL"
-ct.font = Font(bold=True, color="000000", size=11, name="Meiryo")
+ct.font = Font(bold=True, size=11, name="Meiryo")
 ct.fill = fill(COLOR_TOTAL_BG)
-ct.alignment = align("center", "center")
-ct.border = thick_bottom()
+ct.alignment = align()
+ct.border = border("medium")
 
 for col, val, fmt in [
-    (4, total_manual_h,                      "0.0"),
-    (5, round(total_manual_h/HOURS_PER_DAY, 2), "0.00"),
-    (6, total_auto_h,                        "0.0"),
-    (7, round(total_auto_h/HOURS_PER_DAY, 2),   "0.00"),
+    (4, total_manual_h,                         "0.0"),
+    (5, round(total_manual_h / HOURS_PER_DAY, 2), "0.00"),
+    (6, total_auto_h,                           "0.0"),
+    (7, round(total_auto_h   / HOURS_PER_DAY, 2), "0.00"),
 ]:
     c = ws.cell(row=TOTAL_ROW, column=col, value=val)
     c.font = Font(bold=True, size=11, name="Meiryo")
     c.fill = fill(COLOR_TOTAL_BG)
-    c.alignment = align("center", "center")
+    c.alignment = align()
     c.number_format = fmt
-    c.border = thick_bottom()
+    c.border = border("medium")
 
-# ---- Legend row --------------------------------------------------
+# ── Legend ───────────────────────────────────────────────────────
 LEG_ROW = TOTAL_ROW + 2
-ws.merge_cells(f"A{LEG_ROW}:B{LEG_ROW}")
+ws.merge_cells(f"A{LEG_ROW}:G{LEG_ROW}")
 ws[f"A{LEG_ROW}"].value = "凡例：1日 = 8時間換算"
 ws[f"A{LEG_ROW}"].font = Font(italic=True, size=9, color="666666", name="Meiryo")
-ws[f"A{LEG_ROW}"].alignment = align("left", "center")
+ws[f"A{LEG_ROW}"].alignment = align("left")
 
 ws.sheet_view.showGridLines = False
 
